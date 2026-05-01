@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stockie - Fake Stock Market Game</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --card: #1f2937;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --accent: #22c55e;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --border: #334155;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, #0f172a 0%, #111827 100%);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      padding: 16px;
+    }
+
+    .app {
+      max-width: 780px;
+      margin: 0 auto;
+      background: rgba(17, 24, 39, 0.92);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.65rem;
+      letter-spacing: 0.3px;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      margin: 6px 0 16px;
+      font-size: 0.95rem;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .stat {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px;
+    }
+
+    .label { color: var(--muted); font-size: 0.8rem; }
+    .value { font-size: 1.15rem; font-weight: 700; margin-top: 4px; }
+
+    .indexes {
+      display: grid;
+      gap: 10px;
+    }
+
+    .index-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+    }
+
+    .index-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .index-name {
+      font-size: 1.05rem;
+      font-weight: 700;
+    }
+
+    .volatility {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .row input {
+      width: 120px;
+      font-size: 1rem;
+      border-radius: 8px;
+      border: 1px solid #475569;
+      background: #0b1220;
+      color: var(--text);
+      padding: 10px;
+      min-height: 44px;
+    }
+
+    .row span {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .btn {
+      width: 100%;
+      margin-top: 14px;
+      border: none;
+      border-radius: 12px;
+      background: var(--accent);
+      color: #052e16;
+      font-size: 1.06rem;
+      font-weight: 800;
+      min-height: 52px;
+      padding: 12px;
+      cursor: pointer;
+    }
+
+    .btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+
+    .message {
+      margin-top: 12px;
+      padding: 10px;
+      border-radius: 10px;
+      font-size: 0.93rem;
+      border: 1px solid transparent;
+    }
+
+    .message.info { background: #0b1324; border-color: #1d4ed8; }
+    .message.success { background: #052e16; border-color: #22c55e; }
+    .message.warn { background: #451a03; border-color: #f59e0b; }
+    .message.danger { background: #3b0a0a; border-color: #ef4444; }
+
+    .log {
+      margin-top: 12px;
+      max-height: 220px;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #0b1220;
+      padding: 10px;
+      font-size: 0.88rem;
+    }
+
+    .log p { margin: 0 0 8px; color: #cbd5e1; }
+
+    @media (min-width: 640px) {
+      .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <h1>📈 Stockie</h1>
+    <p class="subtitle">Learn trading risk. Goal: reach <strong>$10,000</strong> without going bust.</p>
+
+    <section class="stats">
+      <div class="stat"><div class="label">Sim Date</div><div class="value" id="simDate"></div></div>
+      <div class="stat"><div class="label">Bank (Cash)</div><div class="value" id="bank"></div></div>
+      <div class="stat"><div class="label">Invested</div><div class="value" id="invested"></div></div>
+      <div class="stat"><div class="label">Total Balance</div><div class="value" id="total"></div></div>
+    </section>
+
+    <section class="indexes" id="indexes"></section>
+
+    <button class="btn" id="closeDayBtn">CLOSE DAY ▶</button>
+    <div id="message" class="message info">Set your allocation. At least one index must be above 0%.</div>
+    <div class="log" id="log"></div>
+  </main>
+
+  <script>
+    const goal = 10000;
+    const contributionAmount = 100;
+
+    const indexes = [
+      { key: 'fun', name: 'Fun Index', up: [1, 5], down: [1, 6], allocation: 25, value: 0 },
+      { key: 'crypto', name: 'Crypto Index', up: [5, 15], down: [7, 16], allocation: 25, value: 0 },
+      { key: 'conservative', name: 'Conservative Index', up: [1, 3], down: [1, 4], allocation: 25, value: 0 },
+      { key: 'la', name: 'LA Index', up: [3, 7], down: [2, 9], allocation: 25, value: 0 },
+    ];
+
+    const state = {
+      date: new Date('2026-05-01T00:00:00Z'),
+      dayCount: 0,
+      bank: 100,
+      log: []
+    };
+
+    const indexesEl = document.getElementById('indexes');
+    const simDateEl = document.getElementById('simDate');
+    const bankEl = document.getElementById('bank');
+    const investedEl = document.getElementById('invested');
+    const totalEl = document.getElementById('total');
+    const msgEl = document.getElementById('message');
+    const logEl = document.getElementById('log');
+    const closeDayBtn = document.getElementById('closeDayBtn');
+
+    function currency(n) { return `$${n.toFixed(2)}`; }
+    function randFloat(min, max) { return Math.random() * (max - min) + min; }
+
+    function formatDate(date) {
+      return date.toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+    }
+
+    function nextBusinessDay(date) {
+      const d = new Date(date);
+      do { d.setUTCDate(d.getUTCDate() + 1); }
+      while (d.getUTCDay() === 0 || d.getUTCDay() === 6);
+      return d;
+    }
+
+    function totalAllocation() {
+      return indexes.reduce((sum, i) => sum + (Number(i.allocation) || 0), 0);
+    }
+
+    function countActiveFunds() {
+      return indexes.filter(i => Number(i.allocation) > 0).length;
+    }
+
+    function getTotalInvested() {
+      return indexes.reduce((sum, i) => sum + i.value, 0);
+    }
+
+    function getTotalBalance() {
+      return state.bank + getTotalInvested();
+    }
+
+    function setMessage(text, type = 'info') {
+      msgEl.className = `message ${type}`;
+      msgEl.textContent = text;
+    }
+
+    function renderIndexes() {
+      indexesEl.innerHTML = '';
+      indexes.forEach((idx, i) => {
+        const card = document.createElement('article');
+        card.className = 'index-card';
+        card.innerHTML = `
+          <div class="index-top">
+            <div>
+              <div class="index-name">${idx.name}</div>
+              <div class="volatility">Daily move: +${idx.up[0]}-${idx.up[1]}% / -${idx.down[0]}-${idx.down[1]}%</div>
+            </div>
+            <div class="value">${currency(idx.value)}</div>
+          </div>
+          <div class="row">
+            <label for="alloc-${idx.key}">Invest %:</label>
+            <input id="alloc-${idx.key}" type="number" min="0" max="100" step="1" value="${idx.allocation}" />
+            <span>(new cash + contributions follow this allocation)</span>
+          </div>
+        `;
+        const input = card.querySelector('input');
+        input.addEventListener('input', () => {
+          const val = Math.max(0, Math.min(100, Number(input.value) || 0));
+          indexes[i].allocation = val;
+          input.value = val;
+          validateAllocation();
+          renderStats();
+        });
+        indexesEl.appendChild(card);
+      });
+    }
+
+    function validateAllocation() {
+      const total = totalAllocation();
+      const active = countActiveFunds();
+      if (active < 1) {
+        setMessage('You must invest in at least 1 index.', 'danger');
+        closeDayBtn.disabled = true;
+        return false;
+      }
+      if (total <= 0) {
+        setMessage('Total allocation must be greater than 0%.', 'danger');
+        closeDayBtn.disabled = true;
+        return false;
+      }
+      if (total > 100) {
+        setMessage('Total allocation cannot exceed 100%.', 'danger');
+        closeDayBtn.disabled = true;
+        return false;
+      }
+      setMessage('Allocation looks good. Press CLOSE DAY to simulate market movement.', 'info');
+      closeDayBtn.disabled = false;
+      return true;
+    }
+
+    function allocateCash(amount) {
+      const total = totalAllocation();
+      if (amount <= 0 || total <= 0) return;
+      indexes.forEach(idx => {
+        const pctOfCash = (idx.allocation / total);
+        const contribution = amount * pctOfCash;
+        idx.value += contribution;
+      });
+      state.bank -= amount;
+    }
+
+    function dailyReturn(idx) {
+      const gain = Math.random() < 0.5;
+      const pct = gain ? randFloat(idx.up[0], idx.up[1]) : -randFloat(idx.down[0], idx.down[1]);
+      const change = idx.value * (pct / 100);
+      idx.value += change;
+      return { pct, change };
+    }
+
+    function logLine(text) {
+      state.log.unshift(text);
+      state.log = state.log.slice(0, 80);
+      logEl.innerHTML = state.log.map(line => `<p>${line}</p>`).join('');
+    }
+
+    function renderStats() {
+      simDateEl.textContent = formatDate(state.date);
+      bankEl.textContent = currency(state.bank);
+      investedEl.textContent = currency(getTotalInvested());
+      totalEl.textContent = currency(getTotalBalance());
+      renderIndexes();
+    }
+
+    function closeDay() {
+      if (!validateAllocation()) return;
+
+      if (state.bank > 0) {
+        allocateCash(state.bank);
+      }
+
+      state.date = nextBusinessDay(state.date);
+      state.dayCount += 1;
+
+      const changes = indexes.map(idx => {
+        const res = dailyReturn(idx);
+        return `${idx.name}: ${res.pct >= 0 ? '+' : ''}${res.pct.toFixed(2)}% (${res.change >= 0 ? '+' : ''}${currency(res.change)})`;
+      });
+
+      if (state.dayCount % 5 === 0) {
+        state.bank += contributionAmount;
+        allocateCash(state.bank);
+        logLine(`💼 401k contribution day! Added ${currency(contributionAmount)} and invested by your allocation.`);
+      }
+
+      const total = getTotalBalance();
+      logLine(`📅 ${formatDate(state.date)} | ${changes.join(' | ')} | Total: ${currency(total)}`);
+
+      if (total >= goal) {
+        setMessage(`🏁 You win! You reached ${currency(total)} and beat the ${currency(goal)} goal.`, 'success');
+        closeDayBtn.disabled = true;
+      } else if (total <= 0.01) {
+        setMessage('💥 You went bust. Try a safer allocation strategy and restart.', 'danger');
+        closeDayBtn.disabled = true;
+      } else {
+        setMessage('Day closed. Market moved and your balance has been updated.', 'info');
+      }
+
+      renderStats();
+    }
+
+    closeDayBtn.addEventListener('click', closeDay);
+
+    renderStats();
+    validateAllocation();
+    logLine('Welcome to Stockie. Start with $100, set allocations, then press CLOSE DAY.');
+  </script>
+</body>
+</html>
